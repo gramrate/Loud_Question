@@ -1,0 +1,51 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+*.idea/
+*.iml
+.vscode/
+
+# Go build/test artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.cover
+*.prof
+
+# Go workspace artifacts
+/bin/
+/dist/
+/tmp/
+
+# Logs
+logs/
+*.log
+
+# Environment/config overrides
+.env
+.env.*
+
+# Frontend (future)
+node_modules/
+.pnpm-store/
+.yarn/
+.npm/
+
+# Frontend build outputs (common)
+dist/
+build/
+.next/
+.nuxt/
+.svelte-kit/
+.vite/
+coverage/
+
+# Misc
+*.swp
+*.swo
