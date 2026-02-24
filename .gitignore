@@ -30,6 +30,7 @@ logs/
 # Environment/config overrides
 .env
 .env.*
+!.env.example
 
 # Frontend (future)
 node_modules/
