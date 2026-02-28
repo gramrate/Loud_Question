@@ -104,7 +104,7 @@ func (r *QuestionRepo) GetActiveUnseenByUser(ctx context.Context, userID int64) 
 		FROM user_seen_questions usq
 		WHERE usq.user_id = $1 AND usq.question_id = q.id
 	)
-	ORDER BY q.id
+	ORDER BY RANDOM()
 	LIMIT 1;
 	`
 
