@@ -150,6 +150,15 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		}
 		_ = c.form.StartCreate(ctx, userID)
 		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Напишите вопрос"})
+	case data == "adm:pool":
+		if !c.access.IsAdmin(userID) {
+			return
+		}
+		_ = c.form.StartPoolCreate(ctx, userID)
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+			ChatID: chatID,
+			Text:   "Отправьте пулл вопросов (до 25) в формате:\n[2+2]-[4]\n[4+2]-[6]\n\nДля экстренной остановки: /stop",
+		})
 	case strings.HasPrefix(data, "adm:list:"):
 		if !c.access.IsAdmin(userID) {
 			return
@@ -302,6 +311,64 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		_ = c.form.Cancel(ctx, userID)
 		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "✅ Вопрос добавлен"})
 		c.sendAdminMenu(ctx, chatID)
+	case data == "frm:p:e":
+		state, ok, err := c.form.Get(ctx, userID)
+		if err != nil || !ok || state.Step != schema.FormStepPoolPreview {
+			ack("Форма устарела, начните заново", true)
+			return
+		}
+		state.Step = schema.FormStepPoolEdit
+		_ = c.form.Save(ctx, userID, state)
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+			ChatID: chatID,
+			Text:   "Введите новый вариант для текущего вопроса в формате [вопрос]-[ответ]",
+		})
+	case data == "frm:p:x":
+		state, ok, err := c.form.Get(ctx, userID)
+		if err != nil || !ok || state.Step != schema.FormStepPoolPreview {
+			ack("Форма устарела, начните заново", true)
+			return
+		}
+		state.PoolIndex++
+		if state.PoolIndex >= len(state.PoolItems) {
+			_ = c.form.Cancel(ctx, userID)
+			ack(fmt.Sprintf("Пулл завершен. Добавлено: %d из %d", state.PoolSaved, len(state.PoolItems)), true)
+			c.sendAdminMenu(ctx, chatID)
+			return
+		}
+		_ = c.form.Save(ctx, userID, state)
+		c.sendPoolPreview(ctx, chatID, state)
+	case data == "frm:p:c":
+		state, ok, err := c.form.Get(ctx, userID)
+		if err != nil || !ok || state.Step != schema.FormStepPoolPreview {
+			ack("Форма устарела, начните заново", true)
+			return
+		}
+		if state.PoolIndex < 0 || state.PoolIndex >= len(state.PoolItems) {
+			ack("Форма устарела, начните заново", true)
+			_ = c.form.Cancel(ctx, userID)
+			return
+		}
+		_, err = c.admin.CreateQuestion(ctx, userID, state.PoolItems[state.PoolIndex])
+		if err != nil {
+			if errors.Is(err, errorz.ErrLimitExceeded) {
+				ack("Лимит 150 символов на вопрос и ответ", true)
+			} else {
+				log.Printf("create pool question: %v", err)
+				ack("Не удалось сохранить вопрос", true)
+			}
+			return
+		}
+		state.PoolSaved++
+		state.PoolIndex++
+		if state.PoolIndex >= len(state.PoolItems) {
+			_ = c.form.Cancel(ctx, userID)
+			ack(fmt.Sprintf("Пулл завершен. Добавлено: %d из %d", state.PoolSaved, len(state.PoolItems)), true)
+			c.sendAdminMenu(ctx, chatID)
+			return
+		}
+		_ = c.form.Save(ctx, userID, state)
+		c.sendPoolPreview(ctx, chatID, state)
 	case data == "frm:s":
 		state, ok, err := c.form.Get(ctx, userID)
 		if err != nil || !ok {

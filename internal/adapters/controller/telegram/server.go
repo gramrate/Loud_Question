@@ -49,6 +49,7 @@ func New(token string, logChatID int64, accessSvc *access.Service, gameSvc *game
 
 	b.RegisterHandler(tgbot.HandlerTypeMessageText, "/start", tgbot.MatchTypePrefix, ctrl.start)
 	b.RegisterHandler(tgbot.HandlerTypeMessageText, "/menu", tgbot.MatchTypeExact, ctrl.menu)
+	b.RegisterHandler(tgbot.HandlerTypeMessageText, "/stop", tgbot.MatchTypeExact, ctrl.stopCommand)
 	b.RegisterHandler(tgbot.HandlerTypeMessageText, "/play", tgbot.MatchTypeExact, ctrl.playCommand)
 	b.RegisterHandler(tgbot.HandlerTypeMessageText, "/team", tgbot.MatchTypeExact, ctrl.teamCommand)
 	b.RegisterHandler(tgbot.HandlerTypeMessageText, "/profile", tgbot.MatchTypeExact, ctrl.profileCommand)

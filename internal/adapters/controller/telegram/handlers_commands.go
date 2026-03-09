@@ -145,6 +145,7 @@ func (c *Controller) helpCommand(ctx context.Context, b *tgbot.Bot, upd *models.
 		"/menu - главное меню",
 		"/admin - админ-панель",
 		"/help - список команд",
+		"/stop - экстренно остановить текущую форму/пулл",
 		"/jointeam <uuid> - вступить в команду",
 	}
 	if c.logChatID != 0 && chatID == c.logChatID {
@@ -154,6 +155,32 @@ func (c *Controller) helpCommand(ctx context.Context, b *tgbot.Bot, upd *models.
 		ChatID: chatID,
 		Text:   strings.Join(lines, "\n"),
 	})
+}
+
+func (c *Controller) stopCommand(ctx context.Context, b *tgbot.Bot, upd *models.Update) {
+	if upd.Message == nil || upd.Message.From == nil {
+		return
+	}
+	chatID := upd.Message.Chat.ID
+	userID := upd.Message.From.ID
+	_ = c.users.TouchInteraction(ctx, userID)
+
+	state, ok, err := c.form.Get(ctx, userID)
+	if err != nil || !ok {
+		_, _ = b.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Нет активной операции"})
+		return
+	}
+	added := state.PoolSaved
+	total := len(state.PoolItems)
+	_ = c.form.Cancel(ctx, userID)
+	if state.Step == schema.FormStepPoolInput || state.Step == schema.FormStepPoolPreview || state.Step == schema.FormStepPoolEdit {
+		_, _ = b.SendMessage(ctx, &tgbot.SendMessageParams{
+			ChatID: chatID,
+			Text:   fmt.Sprintf("Пулл остановлен. Добавлено: %d из %d", added, total),
+		})
+		return
+	}
+	_, _ = b.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Операция остановлена"})
 }
 
 func (c *Controller) joinTeamByCommand(ctx context.Context, b *tgbot.Bot, upd *models.Update) {

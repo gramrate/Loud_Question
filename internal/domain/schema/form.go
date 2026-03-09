@@ -17,6 +17,9 @@ const (
 	FormStepPreview     FormStep = "preview"
 	FormStepChooseField FormStep = "choose_field"
 	FormStepEditInput   FormStep = "edit_input"
+	FormStepPoolInput   FormStep = "pool_input"
+	FormStepPoolPreview FormStep = "pool_preview"
+	FormStepPoolEdit    FormStep = "pool_edit"
 )
 
 const (
@@ -36,4 +39,7 @@ type FormState struct {
 	Page       int           `json:"page"`
 	Field      FormField     `json:"field"`
 	Draft      QuestionDraft `json:"draft"`
+	PoolItems  []QuestionDraft `json:"pool_items,omitempty"`
+	PoolIndex  int             `json:"pool_index,omitempty"`
+	PoolSaved  int             `json:"pool_saved,omitempty"`
 }

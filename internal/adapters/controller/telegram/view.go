@@ -87,6 +87,7 @@ func (c *Controller) sendAdminMenu(ctx context.Context, chatID int64) {
 func (c *Controller) sendAdminMenuWithMessage(ctx context.Context, chatID int64, messageID int) {
 	markup := &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
 		{{Text: "➕ Добавить вопрос", CallbackData: "adm:add"}},
+		{{Text: "📥 Добавить Пулл запросов", CallbackData: "adm:pool"}},
 		{{Text: "📋 Мои вопросы", CallbackData: "adm:list:1"}},
 		{{Text: "⬅ Назад", CallbackData: "menu"}},
 	}}
@@ -103,6 +104,28 @@ func (c *Controller) sendAdminMenuWithMessage(ctx context.Context, chatID int64,
 		ChatID: chatID,
 		Text:   "Админ-панель",
 		ReplyMarkup: markup,
+	})
+}
+
+func (c *Controller) sendPoolPreview(ctx context.Context, chatID int64, state schema.FormState) {
+	if state.PoolIndex < 0 || state.PoolIndex >= len(state.PoolItems) {
+		return
+	}
+	item := state.PoolItems[state.PoolIndex]
+	_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+		ChatID: chatID,
+		Text: fmt.Sprintf(
+			"Пулл вопросов (%d/%d)\n\nВопрос: %s\nОтвет: %s\n\nПодтвердить добавление?",
+			state.PoolIndex+1,
+			len(state.PoolItems),
+			item.QuestionText,
+			item.AnswerText,
+		),
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{Text: "✅ Подтвердить", CallbackData: "frm:p:c"}},
+			{{Text: "✏️ Изменить", CallbackData: "frm:p:e"}},
+			{{Text: "❌ Отмена", CallbackData: "frm:p:x"}},
+		}},
 	})
 }
 

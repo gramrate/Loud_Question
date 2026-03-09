@@ -18,6 +18,10 @@ func (s *Service) StartCreate(ctx context.Context, userID int64) error {
 	return s.repo.Set(ctx, userID, schema.FormState{Mode: schema.FormModeCreate, Step: schema.FormStepQuestion})
 }
 
+func (s *Service) StartPoolCreate(ctx context.Context, userID int64) error {
+	return s.repo.Set(ctx, userID, schema.FormState{Mode: schema.FormModeCreate, Step: schema.FormStepPoolInput})
+}
+
 func (s *Service) StartEdit(ctx context.Context, userID int64, questionID string, page int, draft schema.QuestionDraft) error {
 	return s.repo.Set(ctx, userID, schema.FormState{
 		Mode:       schema.FormModeEdit,

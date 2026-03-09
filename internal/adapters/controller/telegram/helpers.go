@@ -3,6 +3,8 @@ package telegram
 import (
 	"LoudQuestionBot/internal/domain/schema"
 	"context"
+	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -94,6 +96,39 @@ func truncateForAlert(text string) string {
 	}
 	r := []rune(text)
 	return string(r[:maxLen-1]) + "…"
+}
+
+var poolLineRx = regexp.MustCompile(`^\s*\[(.*?)\]\s*-\s*\[(.*?)\]\s*$`)
+
+func parsePoolQuestions(text string) ([]schema.QuestionDraft, error) {
+	lines := strings.Split(text, "\n")
+	out := make([]schema.QuestionDraft, 0, len(lines))
+	for i, raw := range lines {
+		line := strings.TrimSpace(raw)
+		if line == "" {
+			continue
+		}
+		m := poolLineRx.FindStringSubmatch(line)
+		if len(m) != 3 {
+			return nil, fmt.Errorf("строка %d: ожидается формат [вопрос]-[ответ]", i+1)
+		}
+		q := strings.TrimSpace(m[1])
+		a := strings.TrimSpace(m[2])
+		if q == "" || a == "" {
+			return nil, fmt.Errorf("строка %d: вопрос и ответ не могут быть пустыми", i+1)
+		}
+		if utf8.RuneCountInString(q) > 150 || utf8.RuneCountInString(a) > 150 {
+			return nil, fmt.Errorf("строка %d: лимит 150 символов на вопрос и ответ", i+1)
+		}
+		out = append(out, schema.QuestionDraft{QuestionText: q, AnswerText: a})
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("не найдено ни одного вопроса")
+	}
+	if len(out) > 25 {
+		return nil, fmt.Errorf("лимит пула: 25 вопросов")
+	}
+	return out, nil
 }
 
 func (c *Controller) answerCallback(ctx context.Context, callbackID, text string, showAlert bool) {

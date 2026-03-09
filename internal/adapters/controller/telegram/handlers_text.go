@@ -78,6 +78,36 @@ func (c *Controller) handleText(ctx context.Context, upd *models.Update) {
 		state.Step = schema.FormStepPreview
 		_ = c.form.Save(ctx, userID, state)
 		c.sendDraftPreview(ctx, chatID, state)
+	case schema.FormStepPoolInput:
+		items, err := parsePoolQuestions(text)
+		if err != nil {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ошибка парсинга: " + err.Error()})
+			return
+		}
+		state.Step = schema.FormStepPoolPreview
+		state.PoolItems = items
+		state.PoolIndex = 0
+		state.PoolSaved = 0
+		_ = c.form.Save(ctx, userID, state)
+		c.sendPoolPreview(ctx, chatID, state)
+	case schema.FormStepPoolEdit:
+		items, err := parsePoolQuestions(text)
+		if err != nil || len(items) != 1 {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+				ChatID: chatID,
+				Text:   "Введите один вопрос в формате [вопрос]-[ответ]",
+			})
+			return
+		}
+		if state.PoolIndex < 0 || state.PoolIndex >= len(state.PoolItems) {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Форма устарела, начните заново"})
+			_ = c.form.Cancel(ctx, userID)
+			return
+		}
+		state.PoolItems[state.PoolIndex] = items[0]
+		state.Step = schema.FormStepPoolPreview
+		_ = c.form.Save(ctx, userID, state)
+		c.sendPoolPreview(ctx, chatID, state)
 	default:
 		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Используйте кнопки под сообщением"})
 	}
