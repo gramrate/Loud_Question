@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
+	"strings"
 
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -13,6 +15,7 @@ import (
 func (c *Controller) mainMenu(userID int64) *models.InlineKeyboardMarkup {
 	rows := [][]models.InlineKeyboardButton{
 		{{Text: "Играть", CallbackData: "play"}},
+		{{Text: "Команда", CallbackData: "team:menu"}},
 	}
 	if c.access.IsAdmin(userID) {
 		rows = append(rows, []models.InlineKeyboardButton{{Text: "Админка", CallbackData: "adm:menu"}})
@@ -21,22 +24,255 @@ func (c *Controller) mainMenu(userID int64) *models.InlineKeyboardMarkup {
 }
 
 func (c *Controller) sendAdminMenu(ctx context.Context, chatID int64) {
+	c.sendAdminMenuWithMessage(ctx, chatID, 0)
+}
+
+func (c *Controller) sendAdminMenuWithMessage(ctx context.Context, chatID int64, messageID int) {
+	markup := &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+		{{Text: "➕ Добавить вопрос", CallbackData: "adm:add"}},
+		{{Text: "📋 Мои вопросы", CallbackData: "adm:list:1"}},
+		{{Text: "⬅ Назад", CallbackData: "menu"}},
+	}}
+	if messageID > 0 {
+		_, _ = c.bot.EditMessageText(ctx, &tgbot.EditMessageTextParams{
+			ChatID:      chatID,
+			MessageID:   messageID,
+			Text:        "Админ-панель",
+			ReplyMarkup: markup,
+		})
+		return
+	}
 	_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
 		ChatID: chatID,
 		Text:   "Админ-панель",
-		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
-			{{Text: "➕ Добавить вопрос", CallbackData: "adm:add"}},
-			{{Text: "📋 Мои вопросы", CallbackData: "adm:list:1"}},
-			{{Text: "⬅ Назад", CallbackData: "menu"}},
-		}},
+		ReplyMarkup: markup,
 	})
 }
 
 func (c *Controller) sendMenu(ctx context.Context, chatID, userID int64) {
+	c.sendMenuWithMessage(ctx, chatID, userID, 0)
+}
+
+func (c *Controller) sendMenuWithMessage(ctx context.Context, chatID, userID int64, messageID int) {
+	if messageID > 0 {
+		_, _ = c.bot.EditMessageText(ctx, &tgbot.EditMessageTextParams{
+			ChatID:      chatID,
+			MessageID:   messageID,
+			Text:        "Главное меню",
+			ReplyMarkup: c.mainMenu(userID),
+		})
+		return
+	}
 	_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
 		ChatID:      chatID,
 		Text:        "Главное меню",
 		ReplyMarkup: c.mainMenu(userID),
+	})
+}
+
+func (c *Controller) sendTeamMenu(ctx context.Context, chatID, userID int64) {
+	c.sendTeamMenuWithMessage(ctx, chatID, userID, 0)
+}
+
+func (c *Controller) sendTeamMenuWithMessage(ctx context.Context, chatID, userID int64, messageID int) {
+	team, ok, err := c.team.GetByUserID(ctx, userID)
+	if err != nil {
+		log.Printf("team by user: %v", err)
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ошибка загрузки команды"})
+		return
+	}
+	if !ok {
+		markup := &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{Text: "Создать команду", CallbackData: "team:create"}},
+			{{Text: "Вступить по UUID", CallbackData: "team:join:help"}},
+			{{Text: "⬅ Назад", CallbackData: "menu"}},
+		}}
+		if messageID > 0 {
+			_, _ = c.bot.EditMessageText(ctx, &tgbot.EditMessageTextParams{
+				ChatID:      chatID,
+				MessageID:   messageID,
+				Text:        "Вы не состоите в команде",
+				ReplyMarkup: markup,
+			})
+			return
+		}
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+			ChatID: chatID,
+			Text:   "Вы не состоите в команде",
+			ReplyMarkup: markup,
+		})
+		return
+	}
+
+	answeredCnt, err := c.game.TeamAnsweredCount(ctx, team.ID)
+	if err != nil {
+		log.Printf("team answered count: %v", err)
+		answeredCnt = 0
+	}
+
+	ownerMark := ""
+	if team.OwnerID == userID {
+		ownerMark = "\nВы создатель команды"
+	}
+	text := fmt.Sprintf("Команда\nUUID: %s\nОтвечено вопросов: %d%s", team.ID, answeredCnt, ownerMark)
+	markup := &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+		{{Text: "🔗 Инвайт-ссылка", CallbackData: "team:link"}},
+		{{Text: "👥 Участники", CallbackData: "team:members"}},
+		{{Text: "🔄 Передать команду", CallbackData: "team:owner:list"}},
+		{{Text: "🚪 Выйти из команды", CallbackData: "team:leave"}},
+		{{Text: "⬅ Назад", CallbackData: "menu"}},
+	}}
+	if messageID > 0 {
+		_, _ = c.bot.EditMessageText(ctx, &tgbot.EditMessageTextParams{
+			ChatID:      chatID,
+			MessageID:   messageID,
+			Text:        text,
+			ReplyMarkup: markup,
+		})
+		return
+	}
+	_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+		ChatID: chatID,
+		Text:   text,
+		ReplyMarkup: markup,
+	})
+}
+
+func (c *Controller) sendTeamInvite(ctx context.Context, chatID, userID int64) {
+	team, ok, err := c.team.GetByUserID(ctx, userID)
+	if err != nil {
+		log.Printf("team by user: %v", err)
+		return
+	}
+	if !ok {
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Сначала вступите в команду"})
+		return
+	}
+	link := fmt.Sprintf("https://t.me/%s?start=jointeam-%s", c.botUsername, team.ID)
+	shareText := "Тебя пригласили в команду в Громкий вопрос!"
+	shareURL := "https://t.me/share/url?url=" + url.QueryEscape(link) + "&text=" + url.QueryEscape(shareText)
+	_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+		ChatID: chatID,
+		Text:   fmt.Sprintf("Ссылка для входа:\n%s\n\nИли код вручную: %s", link, team.ID),
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{Text: "📋 Скопировать код", CopyText: models.CopyTextButton{Text: team.ID}}},
+			{{Text: "📨 Переслать приглашение", URL: shareURL}},
+		}},
+	})
+}
+
+func (c *Controller) sendTeamMembers(ctx context.Context, chatID, userID int64) {
+	team, ok, err := c.team.GetByUserID(ctx, userID)
+	if err != nil {
+		log.Printf("team by user: %v", err)
+		return
+	}
+	if !ok {
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вы не состоите в команде"})
+		return
+	}
+	members, err := c.team.Members(ctx, team.ID)
+	if err != nil {
+		log.Printf("team members: %v", err)
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Не удалось загрузить участников"})
+		return
+	}
+
+	lines := make([]string, 0, len(members)+1)
+	lines = append(lines, "Участники команды:")
+	rows := make([][]models.InlineKeyboardButton, 0, len(members)+2)
+	for _, m := range members {
+		role := "участник"
+		if m.UserID == team.OwnerID {
+			role = "создатель"
+		}
+		fullName := strings.TrimSpace(strings.TrimSpace(m.FirstName) + " " + strings.TrimSpace(m.LastName))
+		if fullName == "" {
+			fullName = "Без имени"
+		}
+		line := fmt.Sprintf("- %s", fullName)
+		if m.Username != "" {
+			line += fmt.Sprintf(" | @%s", m.Username)
+		}
+		line += fmt.Sprintf(" | id=%d (%s)", m.UserID, role)
+		lines = append(lines, line)
+		if userID == team.OwnerID && m.UserID != team.OwnerID {
+			rows = append(rows, []models.InlineKeyboardButton{{
+				Text:         fmt.Sprintf("Кикнуть %d", m.UserID),
+				CallbackData: fmt.Sprintf("team:kick:%d", m.UserID),
+			}})
+		}
+	}
+
+	rows = append(rows, []models.InlineKeyboardButton{{Text: "⬅ Назад", CallbackData: "team:menu"}})
+	_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        strings.Join(lines, "\n"),
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: rows},
+	})
+}
+
+func (c *Controller) sendTeamOwnerTransferMenu(ctx context.Context, chatID, userID int64, messageID int) {
+	team, ok, err := c.team.GetByUserID(ctx, userID)
+	if err != nil {
+		log.Printf("team by user: %v", err)
+		return
+	}
+	if !ok {
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вы не состоите в команде"})
+		return
+	}
+	if team.OwnerID != userID {
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Передавать команду может только создатель"})
+		return
+	}
+
+	members, err := c.team.Members(ctx, team.ID)
+	if err != nil {
+		log.Printf("team members: %v", err)
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Не удалось загрузить участников"})
+		return
+	}
+
+	rows := make([][]models.InlineKeyboardButton, 0, len(members)+1)
+	for _, m := range members {
+		if m.UserID == team.OwnerID {
+			continue
+		}
+		fullName := strings.TrimSpace(strings.TrimSpace(m.FirstName) + " " + strings.TrimSpace(m.LastName))
+		if fullName == "" {
+			fullName = "Без имени"
+		}
+		label := fullName
+		if m.Username != "" {
+			label += " | @" + m.Username
+		}
+		label += fmt.Sprintf(" | id=%d", m.UserID)
+		rows = append(rows, []models.InlineKeyboardButton{{
+			Text:         shortText(label, 60),
+			CallbackData: fmt.Sprintf("team:owner:%d", m.UserID),
+		}})
+	}
+	rows = append(rows, []models.InlineKeyboardButton{{Text: "⬅ Назад", CallbackData: "team:menu"}})
+
+	text := "Кому передать команду?"
+	if len(rows) == 1 {
+		text = "В команде нет других участников"
+	}
+
+	if messageID > 0 {
+		_, _ = c.bot.EditMessageText(ctx, &tgbot.EditMessageTextParams{
+			ChatID:      chatID,
+			MessageID:   messageID,
+			Text:        text,
+			ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: rows},
+		})
+		return
+	}
+	_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        text,
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: rows},
 	})
 }
 
@@ -68,7 +304,7 @@ func (c *Controller) sendMyQuestions(ctx context.Context, chatID, userID int64, 
 		idx := (page-1)*pageSize + i + 1
 		rows = append(rows, []models.InlineKeyboardButton{{
 			Text:         fmt.Sprintf("%d) %s", idx, shortText(q.QuestionText, 35)),
-			CallbackData: fmt.Sprintf("adm:open:%d:%d", q.ID, page),
+			CallbackData: fmt.Sprintf("adm:open:%s:%d", q.ID, page),
 		}})
 	}
 
@@ -95,7 +331,7 @@ func (c *Controller) sendMyQuestions(ctx context.Context, chatID, userID int64, 
 	})
 }
 
-func (c *Controller) sendQuestionCard(ctx context.Context, chatID, userID, questionID int64, page int) {
+func (c *Controller) sendQuestionCard(ctx context.Context, chatID, userID int64, questionID string, page int) {
 	q, err := c.admin.GetQuestion(ctx, questionID)
 	if err != nil || q.Status != schema.QuestionStatusActive {
 		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос больше недоступен"})
@@ -113,9 +349,9 @@ func (c *Controller) sendQuestionCardWithEntity(ctx context.Context, chatID int6
 		ChatID: chatID,
 		Text:   "Вопрос: " + q.QuestionText,
 		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
-			{{Text: "👁 Показать ответ", CallbackData: fmt.Sprintf("ans:%d", q.ID)}},
-			{{Text: "✏️ Изменить", CallbackData: fmt.Sprintf("adm:edit:%d:%d", q.ID, page)}},
-			{{Text: "🗑 Удалить", CallbackData: fmt.Sprintf("adm:delask:%d:%d", q.ID, page)}},
+			{{Text: "👁 Показать ответ", CallbackData: fmt.Sprintf("ans:%s", q.ID)}},
+			{{Text: "✏️ Изменить", CallbackData: fmt.Sprintf("adm:edit:%s:%d", q.ID, page)}},
+			{{Text: "🗑 Удалить", CallbackData: fmt.Sprintf("adm:delask:%s:%d", q.ID, page)}},
 			{{Text: "⬅ Назад к списку", CallbackData: fmt.Sprintf("adm:list:%d", page)}},
 		}},
 	})

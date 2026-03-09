@@ -1,11 +1,14 @@
 package telegram
 
 import (
+	"LoudQuestionBot/internal/domain/schema"
 	"context"
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 func shortText(s string, max int) string {
@@ -39,6 +42,48 @@ func parseInt64Part(data string, idx int) (int64, bool) {
 		return 0, false
 	}
 	return v, true
+}
+
+func parseStringPart(data string, idx int) (string, bool) {
+	parts := strings.Split(data, ":")
+	if len(parts) <= idx {
+		return "", false
+	}
+	v := strings.TrimSpace(parts[idx])
+	if v == "" {
+		return "", false
+	}
+	return v, true
+}
+
+func isValidUUID(v string) bool {
+	_, err := uuid.Parse(v)
+	return err == nil
+}
+
+func parseStartJoinTeam(text string) (string, bool) {
+	parts := strings.Fields(text)
+	if len(parts) < 2 {
+		return "", false
+	}
+	arg := strings.TrimSpace(parts[1])
+	const prefix = "jointeam-"
+	if !strings.HasPrefix(arg, prefix) {
+		return "", false
+	}
+	teamID := strings.TrimPrefix(arg, prefix)
+	if !isValidUUID(teamID) {
+		return "", false
+	}
+	return teamID, true
+}
+
+func userProfileFromTelegramUser(user models.User) schema.UserProfile {
+	return schema.UserProfile{
+		FirstName: strings.TrimSpace(user.FirstName),
+		LastName:  strings.TrimSpace(user.LastName),
+		Username:  strings.TrimSpace(user.Username),
+	}
 }
 
 func (c *Controller) answerCallback(ctx context.Context, callbackID, text string) {

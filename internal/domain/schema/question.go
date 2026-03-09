@@ -11,7 +11,7 @@ const (
 )
 
 type Question struct {
-	ID           int64
+	ID           string
 	QuestionText string
 	AnswerText   string
 	AuthorID     int64

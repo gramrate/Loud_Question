@@ -32,7 +32,7 @@ type QuestionDraft struct {
 type FormState struct {
 	Mode       FormMode      `json:"mode"`
 	Step       FormStep      `json:"step"`
-	QuestionID int64         `json:"question_id"`
+	QuestionID string        `json:"question_id"`
 	Page       int           `json:"page"`
 	Field      FormField     `json:"field"`
 	Draft      QuestionDraft `json:"draft"`

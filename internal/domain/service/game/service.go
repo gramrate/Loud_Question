@@ -18,21 +18,46 @@ func New(questions repository.QuestionRepository) *Service {
 	return &Service{questions: questions}
 }
 
-func (s *Service) NextQuestion(ctx context.Context, userID int64) (schema.Question, error) {
-	q, err := s.questions.GetActiveUnseenByUser(ctx, userID)
+func (s *Service) NextQuestion(ctx context.Context, userID int64, teamID string) (schema.Question, error) {
+	var (
+		q   schema.Question
+		err error
+	)
+	if teamID == "" {
+		q, err = s.questions.GetActiveUnseenByUser(ctx, userID)
+	} else {
+		q, err = s.questions.GetActiveUnseenByTeam(ctx, teamID, userID)
+	}
 	if err != nil {
 		if errors.Is(err, errorz.ErrNotFound) {
 			return schema.Question{}, ErrNoNewQuestions
 		}
 		return schema.Question{}, err
 	}
-	if err := s.questions.MarkSeen(ctx, userID, q.ID); err != nil {
-		return schema.Question{}, err
+	if teamID == "" {
+		if err := s.questions.MarkSeenByUser(ctx, userID, q.ID); err != nil {
+			return schema.Question{}, err
+		}
+	} else {
+		if err := s.questions.MarkSeenByTeam(ctx, teamID, q.ID); err != nil {
+			return schema.Question{}, err
+		}
 	}
 	return q, nil
 }
 
-func (s *Service) AnswerByQuestionID(ctx context.Context, questionID int64) (string, error) {
+func (s *Service) TeamAnsweredCount(ctx context.Context, teamID string) (int, error) {
+	if teamID == "" {
+		return 0, nil
+	}
+	cnt, err := s.questions.CountSeenByTeam(ctx, teamID)
+	if err != nil {
+		return 0, err
+	}
+	return cnt, nil
+}
+
+func (s *Service) AnswerByQuestionID(ctx context.Context, questionID string) (string, error) {
 	q, err := s.questions.GetByID(ctx, questionID)
 	if err != nil {
 		return "", err

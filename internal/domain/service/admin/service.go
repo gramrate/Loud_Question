@@ -24,7 +24,7 @@ func (s *Service) CreateQuestion(ctx context.Context, authorID int64, draft sche
 	if err != nil {
 		return schema.Question{}, err
 	}
-	if err := s.questions.MarkSeen(ctx, authorID, created.ID); err != nil {
+	if err := s.questions.MarkSeenByUser(ctx, authorID, created.ID); err != nil {
 		return schema.Question{}, err
 	}
 	return created, nil
@@ -34,14 +34,14 @@ func (s *Service) MyQuestions(ctx context.Context, authorID int64, page, pageSiz
 	return s.questions.ListByAuthor(ctx, authorID, page, pageSize)
 }
 
-func (s *Service) GetQuestion(ctx context.Context, questionID int64) (schema.Question, error) {
+func (s *Service) GetQuestion(ctx context.Context, questionID string) (schema.Question, error) {
 	return s.questions.GetByID(ctx, questionID)
 }
 
-func (s *Service) UpdateQuestion(ctx context.Context, authorID, questionID int64, draft schema.QuestionDraft) (schema.Question, error) {
+func (s *Service) UpdateQuestion(ctx context.Context, authorID int64, questionID string, draft schema.QuestionDraft) (schema.Question, error) {
 	return s.questions.UpdateByAuthor(ctx, authorID, questionID, draft)
 }
 
-func (s *Service) DeleteQuestion(ctx context.Context, authorID, questionID int64) error {
+func (s *Service) DeleteQuestion(ctx context.Context, authorID int64, questionID string) error {
 	return s.questions.SoftDeleteByAuthor(ctx, authorID, questionID)
 }
