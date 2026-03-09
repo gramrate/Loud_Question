@@ -90,13 +90,26 @@ func (c *Controller) handleText(ctx context.Context, upd *models.Update) {
 		state.PoolSaved = 0
 		_ = c.form.Save(ctx, userID, state)
 		c.sendPoolPreview(ctx, chatID, state)
-	case schema.FormStepPoolEdit:
-		items, err := parsePoolQuestions(text)
-		if err != nil || len(items) != 1 {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
-				ChatID: chatID,
-				Text:   "Введите один вопрос в формате [вопрос]-[ответ]",
-			})
+	case schema.FormStepPoolEditQ:
+		if utf8.RuneCountInString(text) > 150 {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос не должен быть длиннее 150 символов"})
+			return
+		}
+		if strings.TrimSpace(text) == "" {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос не может быть пустым"})
+			return
+		}
+		state.Draft.QuestionText = strings.TrimSpace(text)
+		state.Step = schema.FormStepPoolEditA
+		_ = c.form.Save(ctx, userID, state)
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Введите ответ"})
+	case schema.FormStepPoolEditA:
+		if utf8.RuneCountInString(text) > 150 {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ не должен быть длиннее 150 символов"})
+			return
+		}
+		if strings.TrimSpace(text) == "" {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ не может быть пустым"})
 			return
 		}
 		if state.PoolIndex < 0 || state.PoolIndex >= len(state.PoolItems) {
@@ -104,7 +117,11 @@ func (c *Controller) handleText(ctx context.Context, upd *models.Update) {
 			_ = c.form.Cancel(ctx, userID)
 			return
 		}
-		state.PoolItems[state.PoolIndex] = items[0]
+		state.Draft.AnswerText = strings.TrimSpace(text)
+		state.PoolItems[state.PoolIndex] = schema.QuestionDraft{
+			QuestionText: state.Draft.QuestionText,
+			AnswerText:   state.Draft.AnswerText,
+		}
 		state.Step = schema.FormStepPoolPreview
 		_ = c.form.Save(ctx, userID, state)
 		c.sendPoolPreview(ctx, chatID, state)

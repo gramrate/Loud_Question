@@ -173,7 +173,7 @@ func (c *Controller) stopCommand(ctx context.Context, b *tgbot.Bot, upd *models.
 	added := state.PoolSaved
 	total := len(state.PoolItems)
 	_ = c.form.Cancel(ctx, userID)
-	if state.Step == schema.FormStepPoolInput || state.Step == schema.FormStepPoolPreview || state.Step == schema.FormStepPoolEdit {
+	if state.Step == schema.FormStepPoolInput || state.Step == schema.FormStepPoolPreview || state.Step == schema.FormStepPoolEditQ || state.Step == schema.FormStepPoolEditA {
 		_, _ = b.SendMessage(ctx, &tgbot.SendMessageParams{
 			ChatID: chatID,
 			Text:   fmt.Sprintf("Пулл остановлен. Добавлено: %d из %d", added, total),

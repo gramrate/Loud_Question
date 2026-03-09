@@ -317,11 +317,11 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 			ack("Форма устарела, начните заново", true)
 			return
 		}
-		state.Step = schema.FormStepPoolEdit
+		state.Step = schema.FormStepPoolEditQ
 		_ = c.form.Save(ctx, userID, state)
 		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
 			ChatID: chatID,
-			Text:   "Введите новый вариант для текущего вопроса в формате [вопрос]-[ответ]",
+			Text:   "Введите вопрос",
 		})
 	case data == "frm:p:x":
 		state, ok, err := c.form.Get(ctx, userID)

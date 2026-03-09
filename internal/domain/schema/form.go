@@ -19,7 +19,8 @@ const (
 	FormStepEditInput   FormStep = "edit_input"
 	FormStepPoolInput   FormStep = "pool_input"
 	FormStepPoolPreview FormStep = "pool_preview"
-	FormStepPoolEdit    FormStep = "pool_edit"
+	FormStepPoolEditQ   FormStep = "pool_edit_q"
+	FormStepPoolEditA   FormStep = "pool_edit_a"
 )
 
 const (
