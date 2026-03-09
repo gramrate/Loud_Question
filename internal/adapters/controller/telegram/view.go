@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"time"
 
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -16,11 +17,67 @@ func (c *Controller) mainMenu(userID int64) *models.InlineKeyboardMarkup {
 	rows := [][]models.InlineKeyboardButton{
 		{{Text: "Играть", CallbackData: "play"}},
 		{{Text: "Команда", CallbackData: "team:menu"}},
+		{{Text: "Профиль", CallbackData: "profile:menu"}},
 	}
 	if c.access.IsAdmin(userID) {
 		rows = append(rows, []models.InlineKeyboardButton{{Text: "Админка", CallbackData: "adm:menu"}})
 	}
 	return &models.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+func (c *Controller) sendProfileMenuWithMessage(ctx context.Context, chatID, userID int64, messageID int) {
+	user, ok, err := c.users.GetByID(ctx, userID)
+	if err != nil {
+		log.Printf("profile get user: %v", err)
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Не удалось загрузить профиль"})
+		return
+	}
+	if !ok {
+		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Профиль недоступен. Нажмите /start"})
+		return
+	}
+
+	answeredCnt, err := c.game.AnsweredByUserCount(ctx, userID)
+	if err != nil {
+		log.Printf("profile answered count: %v", err)
+		answeredCnt = 0
+	}
+	daysSinceReg := int(time.Since(user.RegisteredAt).Hours() / 24)
+	if daysSinceReg < 0 {
+		daysSinceReg = 0
+	}
+	daysSinceReg++
+
+	name := strings.TrimSpace(strings.TrimSpace(user.FirstName) + " " + strings.TrimSpace(user.LastName))
+	if name == "" {
+		name = "Без имени"
+	}
+	uname := "-"
+	if user.Username != "" {
+		uname = "@" + user.Username
+	}
+
+	text := fmt.Sprintf(
+		"Профиль\nИмя: %s\nUsername: %s\nОтветил вопросов: %d\nВ игре уже дней: %d\nID: %d",
+		name, uname, answeredCnt, daysSinceReg, userID,
+	)
+	markup := &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+		{{Text: "⬅ Назад", CallbackData: "menu"}},
+	}}
+	if messageID > 0 {
+		_, _ = c.bot.EditMessageText(ctx, &tgbot.EditMessageTextParams{
+			ChatID:      chatID,
+			MessageID:   messageID,
+			Text:        text,
+			ReplyMarkup: markup,
+		})
+		return
+	}
+	_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        text,
+		ReplyMarkup: markup,
+	})
 }
 
 func (c *Controller) sendAdminMenu(ctx context.Context, chatID int64) {
@@ -162,6 +219,10 @@ func (c *Controller) sendTeamInvite(ctx context.Context, chatID, userID int64) {
 }
 
 func (c *Controller) sendTeamMembers(ctx context.Context, chatID, userID int64) {
+	c.sendTeamMembersWithMessage(ctx, chatID, userID, 0)
+}
+
+func (c *Controller) sendTeamMembersWithMessage(ctx context.Context, chatID, userID int64, messageID int) {
 	team, ok, err := c.team.GetByUserID(ctx, userID)
 	if err != nil {
 		log.Printf("team by user: %v", err)
@@ -205,10 +266,21 @@ func (c *Controller) sendTeamMembers(ctx context.Context, chatID, userID int64) 
 	}
 
 	rows = append(rows, []models.InlineKeyboardButton{{Text: "⬅ Назад", CallbackData: "team:menu"}})
+	text := strings.Join(lines, "\n")
+	markup := &models.InlineKeyboardMarkup{InlineKeyboard: rows}
+	if messageID > 0 {
+		_, _ = c.bot.EditMessageText(ctx, &tgbot.EditMessageTextParams{
+			ChatID:      chatID,
+			MessageID:   messageID,
+			Text:        text,
+			ReplyMarkup: markup,
+		})
+		return
+	}
 	_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        strings.Join(lines, "\n"),
-		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: rows},
+		Text:        text,
+		ReplyMarkup: markup,
 	})
 }
 

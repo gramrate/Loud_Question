@@ -13,6 +13,7 @@ type Config struct {
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
+	LogChatID     int64
 	AdminIDs      map[int64]struct{}
 }
 
@@ -34,6 +35,16 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("invalid REDIS_DB: %w", err)
 		}
 		cfg.RedisDB = v
+	}
+	logChatRaw := strings.TrimSpace(os.Getenv("LOG_CHAT_ID"))
+	if logChatRaw == "" {
+		cfg.LogChatID = 0
+	} else {
+		v, err := strconv.ParseInt(logChatRaw, 10, 64)
+		if err != nil {
+			return Config{}, fmt.Errorf("invalid LOG_CHAT_ID: %w", err)
+		}
+		cfg.LogChatID = v
 	}
 
 	if cfg.BotToken == "" {

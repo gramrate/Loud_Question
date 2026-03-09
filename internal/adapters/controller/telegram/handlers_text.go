@@ -5,6 +5,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"unicode/utf8"
 
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -42,11 +43,19 @@ func (c *Controller) handleText(ctx context.Context, upd *models.Update) {
 
 	switch state.Step {
 	case schema.FormStepQuestion:
+		if utf8.RuneCountInString(text) > 150 {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос не должен быть длиннее 150 символов"})
+			return
+		}
 		state.Draft.QuestionText = text
 		state.Step = schema.FormStepAnswer
 		_ = c.form.Save(ctx, userID, state)
 		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Напишите ответ"})
 	case schema.FormStepAnswer:
+		if utf8.RuneCountInString(text) > 150 {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ не должен быть длиннее 150 символов"})
+			return
+		}
 		state.Draft.AnswerText = text
 		state.Step = schema.FormStepPreview
 		_ = c.form.Save(ctx, userID, state)
@@ -54,8 +63,16 @@ func (c *Controller) handleText(ctx context.Context, upd *models.Update) {
 	case schema.FormStepEditInput:
 		switch state.Field {
 		case schema.FormFieldQuestion:
+			if utf8.RuneCountInString(text) > 150 {
+				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос не должен быть длиннее 150 символов"})
+				return
+			}
 			state.Draft.QuestionText = text
 		case schema.FormFieldAnswer:
+			if utf8.RuneCountInString(text) > 150 {
+				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ не должен быть длиннее 150 символов"})
+				return
+			}
 			state.Draft.AnswerText = text
 		}
 		state.Step = schema.FormStepPreview

@@ -5,6 +5,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	tgbot "github.com/go-telegram/bot"
@@ -86,10 +87,19 @@ func userProfileFromTelegramUser(user models.User) schema.UserProfile {
 	}
 }
 
-func (c *Controller) answerCallback(ctx context.Context, callbackID, text string) {
+func truncateForAlert(text string) string {
+	const maxLen = 200
+	if utf8.RuneCountInString(text) <= maxLen {
+		return text
+	}
+	r := []rune(text)
+	return string(r[:maxLen-1]) + "…"
+}
+
+func (c *Controller) answerCallback(ctx context.Context, callbackID, text string, showAlert bool) {
 	_, _ = c.bot.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
 		CallbackQueryID: callbackID,
 		Text:            text,
-		ShowAlert:       false,
+		ShowAlert:       showAlert,
 	})
 }

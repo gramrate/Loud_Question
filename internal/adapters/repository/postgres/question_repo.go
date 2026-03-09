@@ -64,6 +64,12 @@ func (r *QuestionRepo) Migrate(ctx context.Context) error {
 			seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			PRIMARY KEY(team_id, question_id)
 		);`,
+		`CREATE TABLE IF NOT EXISTS user_answered_questions (
+			user_id BIGINT NOT NULL,
+			question_id UUID NOT NULL REFERENCES questions(id),
+			answered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY(user_id, question_id)
+		);`,
 	}
 
 	for _, q := range queries {
@@ -209,6 +215,25 @@ func (r *QuestionRepo) CountSeenByTeam(ctx context.Context, teamID string) (int,
 	const query = `SELECT COUNT(*) FROM team_seen_questions WHERE team_id = $1;`
 	var cnt int
 	if err := r.pool.QueryRow(ctx, query, teamID).Scan(&cnt); err != nil {
+		return 0, err
+	}
+	return cnt, nil
+}
+
+func (r *QuestionRepo) MarkAnsweredByUser(ctx context.Context, userID int64, questionID string) error {
+	const query = `
+	INSERT INTO user_answered_questions (user_id, question_id)
+	VALUES ($1, $2)
+	ON CONFLICT (user_id, question_id) DO NOTHING;
+	`
+	_, err := r.pool.Exec(ctx, query, userID, questionID)
+	return err
+}
+
+func (r *QuestionRepo) CountAnsweredByUser(ctx context.Context, userID int64) (int, error) {
+	const query = `SELECT COUNT(*) FROM user_answered_questions WHERE user_id = $1;`
+	var cnt int
+	if err := r.pool.QueryRow(ctx, query, userID).Scan(&cnt); err != nil {
 		return 0, err
 	}
 	return cnt, nil

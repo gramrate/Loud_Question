@@ -67,3 +67,11 @@ func (s *Service) AnswerByQuestionID(ctx context.Context, questionID string) (st
 	}
 	return q.AnswerText, nil
 }
+
+func (s *Service) MarkAnsweredByUser(ctx context.Context, userID int64, questionID string) error {
+	return s.questions.MarkAnsweredByUser(ctx, userID, questionID)
+}
+
+func (s *Service) AnsweredByUserCount(ctx context.Context, userID int64) (int, error) {
+	return s.questions.CountAnsweredByUser(ctx, userID)
+}

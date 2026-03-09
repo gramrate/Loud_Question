@@ -10,6 +10,7 @@ import (
 	"LoudQuestionBot/internal/domain/service/form"
 	"LoudQuestionBot/internal/domain/service/game"
 	"LoudQuestionBot/internal/domain/service/team"
+	"LoudQuestionBot/internal/domain/service/user"
 	telegramsvc "LoudQuestionBot/internal/domain/service/telegram"
 	"context"
 	"fmt"
@@ -30,6 +31,7 @@ type ServiceProvider struct {
 	gameService   *game.Service
 	formService   *form.Service
 	teamService   *team.Service
+	userService   *user.Service
 
 	botRunner telegramsvc.Runner
 }
@@ -82,6 +84,10 @@ func (sp *ServiceProvider) init() error {
 	if err := teamRepo.Migrate(ctx); err != nil {
 		return fmt.Errorf("migrate teams: %w", err)
 	}
+	userRepo := postgres.NewUserRepo(sp.pgPool)
+	if err := userRepo.Migrate(ctx); err != nil {
+		return fmt.Errorf("migrate users: %w", err)
+	}
 	formRepo := redisstate.NewFormStateRepo(sp.redisClient)
 
 	sp.accessService = access.New(cfg.AdminIDs)
@@ -89,8 +95,9 @@ func (sp *ServiceProvider) init() error {
 	sp.gameService = game.New(questionRepo)
 	sp.formService = form.New(formRepo)
 	sp.teamService = team.New(teamRepo)
+	sp.userService = user.New(userRepo)
 
-	botRunner, err := tgcontroller.New(cfg.BotToken, sp.accessService, sp.gameService, sp.adminService, sp.formService, sp.teamService)
+	botRunner, err := tgcontroller.New(cfg.BotToken, cfg.LogChatID, sp.accessService, sp.gameService, sp.adminService, sp.formService, sp.teamService, sp.userService)
 	if err != nil {
 		return fmt.Errorf("create telegram controller: %w", err)
 	}

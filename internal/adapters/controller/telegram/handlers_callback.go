@@ -24,13 +24,27 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 	chatID := cb.Message.Message.Chat.ID
 	messageID := cb.Message.Message.ID
 	data := cb.Data
-	c.answerCallback(ctx, cb.ID, "")
+	answered := false
+	ack := func(text string, showAlert bool) {
+		if answered {
+			return
+		}
+		c.answerCallback(ctx, cb.ID, truncateForAlert(text), showAlert)
+		answered = true
+	}
+	defer func() {
+		if !answered {
+			ack("", false)
+		}
+	}()
 
 	switch {
 	case data == "menu":
 		c.sendMenuWithMessage(ctx, chatID, userID, messageID)
+	case data == "profile:menu":
+		c.sendProfileMenuWithMessage(ctx, chatID, userID, messageID)
 	case data == "play":
-		c.sendNextQuestion(ctx, chatID, userID)
+		c.sendNextQuestionFromCallback(ctx, chatID, userID, ack)
 	case strings.HasPrefix(data, "ans:"):
 		id, ok := parseStringPart(data, 1)
 		if !ok || !isValidUUID(id) {
@@ -39,13 +53,17 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		answer, err := c.game.AnswerByQuestionID(ctx, id)
 		if err != nil {
 			if errors.Is(err, errorz.ErrNotFound) {
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос больше недоступен"})
+				ack("Вопрос больше недоступен", true)
 				return
 			}
 			log.Printf("answer by id: %v", err)
+			ack("Ошибка. Попробуйте позже", true)
 			return
 		}
-		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ: " + answer})
+		if err := c.game.MarkAnsweredByUser(ctx, userID, id); err != nil {
+			log.Printf("mark answered by user: %v", err)
+		}
+		ack("Ответ: "+answer, true)
 	case data == "team:menu":
 		c.sendTeamMenuWithMessage(ctx, chatID, userID, messageID)
 	case data == "team:create":
@@ -53,31 +71,31 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		if err != nil {
 			switch {
 			case errors.Is(err, errorz.ErrConflict):
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вы уже состоите в команде"})
+				ack("Вы уже состоите в команде", true)
 			default:
 				log.Printf("team create: %v", err)
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Не удалось создать команду"})
+				ack("Не удалось создать команду", true)
 			}
 			return
 		}
 		c.sendTeamMenuWithMessage(ctx, chatID, userID, messageID)
 	case data == "team:join:help":
-		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Введите код: /jointeam <uuid>"})
+		ack("Введите код: /jointeam <uuid>", true)
 	case data == "team:leave":
 		err := c.team.Leave(ctx, userID)
 		if err != nil {
 			if !errors.Is(err, errorz.ErrNotFound) {
 				log.Printf("team leave: %v", err)
 			}
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вы не состоите в команде"})
+			ack("Вы не состоите в команде", true)
 			return
 		}
-		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вы вышли из команды"})
+		ack("Вы вышли из команды", true)
 		c.sendTeamMenuWithMessage(ctx, chatID, userID, messageID)
 	case data == "team:link":
 		c.sendTeamInvite(ctx, chatID, userID)
 	case data == "team:members":
-		c.sendTeamMembers(ctx, chatID, userID)
+		c.sendTeamMembersWithMessage(ctx, chatID, userID, messageID)
 	case data == "team:owner:list":
 		c.sendTeamOwnerTransferMenu(ctx, chatID, userID, messageID)
 	case strings.HasPrefix(data, "team:kick:"):
@@ -89,17 +107,17 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		if err != nil {
 			switch {
 			case errors.Is(err, errorz.ErrForbidden):
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Кикать участников может только создатель команды"})
+				ack("Кикать может только создатель", true)
 			case errors.Is(err, errorz.ErrNotFound):
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Участник не найден"})
+				ack("Участник не найден", true)
 			default:
 				log.Printf("team kick: %v", err)
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Не удалось кикнуть участника"})
+				ack("Не удалось кикнуть участника", true)
 			}
 			return
 		}
-		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Участник кикнут из команды"})
-		c.sendTeamMembers(ctx, chatID, userID)
+		ack("Участник кикнут", true)
+		c.sendTeamMembersWithMessage(ctx, chatID, userID, messageID)
 	case strings.HasPrefix(data, "team:owner:"):
 		memberID, ok := parseInt64Part(data, 2)
 		if !ok {
@@ -109,20 +127,20 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		if err != nil {
 			switch {
 			case errors.Is(err, errorz.ErrForbidden):
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Передавать админа может только текущий создатель"})
+				ack("Передавать может только создатель", true)
 			case errors.Is(err, errorz.ErrNotFound):
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Участник не найден в вашей команде"})
+				ack("Участник не найден в команде", true)
 			default:
 				log.Printf("team transfer ownership: %v", err)
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Не удалось передать админа"})
+				ack("Не удалось передать админа", true)
 			}
 			return
 		}
-		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Админ передан"})
+		ack("Админ передан", true)
 		c.sendTeamMenuWithMessage(ctx, chatID, userID, messageID)
 	case data == "adm:menu":
 		if !c.access.IsAdmin(userID) {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Недостаточно прав"})
+			ack("Недостаточно прав", true)
 			return
 		}
 		c.sendAdminMenuWithMessage(ctx, chatID, messageID)
@@ -170,11 +188,11 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		}
 		q, err := c.admin.GetQuestion(ctx, qid)
 		if err != nil {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос больше недоступен"})
+			ack("Вопрос больше недоступен", true)
 			return
 		}
 		if q.AuthorID != userID || q.Status != schema.QuestionStatusActive {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Можно редактировать только свои активные вопросы"})
+			ack("Можно редактировать только свои", true)
 			return
 		}
 		_ = c.form.StartEdit(ctx, userID, q.ID, page, schema.QuestionDraft{QuestionText: q.QuestionText, AnswerText: q.AnswerText})
@@ -216,13 +234,14 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		err = c.admin.DeleteQuestion(ctx, userID, qid)
 		if err != nil {
 			if errors.Is(err, errorz.ErrForbidden) {
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Можно удалять только свои вопросы"})
+				ack("Можно удалять только свои", true)
 				return
 			}
 			log.Printf("delete question: %v", err)
+			ack("Не удалось удалить вопрос", true)
 			return
 		}
-		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "🗑 Удалено"})
+		ack("Удалено", true)
 		c.sendMyQuestions(ctx, chatID, userID, page)
 	case data == "frm:x":
 		_ = c.form.Cancel(ctx, userID)
@@ -230,7 +249,7 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 	case data == "frm:e":
 		state, ok, err := c.form.Get(ctx, userID)
 		if err != nil || !ok {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Форма устарела, начните заново"})
+			ack("Форма устарела, начните заново", true)
 			return
 		}
 		state.Step = schema.FormStepChooseField
@@ -239,7 +258,7 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 	case data == "frm:b":
 		state, ok, err := c.form.Get(ctx, userID)
 		if err != nil || !ok {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Форма устарела, начните заново"})
+			ack("Форма устарела, начните заново", true)
 			return
 		}
 		state.Step = schema.FormStepPreview
@@ -248,7 +267,7 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 	case data == "frm:f:q" || data == "frm:f:a":
 		state, ok, err := c.form.Get(ctx, userID)
 		if err != nil || !ok {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Форма устарела, начните заново"})
+			ack("Форма устарела, начните заново", true)
 			return
 		}
 		switch data {
@@ -264,7 +283,7 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 	case data == "frm:c":
 		state, ok, err := c.form.Get(ctx, userID)
 		if err != nil || !ok {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Форма устарела, начните заново"})
+			ack("Форма устарела, начните заново", true)
 			return
 		}
 		if state.Mode != schema.FormModeCreate {
@@ -272,8 +291,12 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		}
 		_, err = c.admin.CreateQuestion(ctx, userID, state.Draft)
 		if err != nil {
+			if errors.Is(err, errorz.ErrLimitExceeded) {
+				ack("Лимит 150 символов на вопрос и ответ", true)
+				return
+			}
 			log.Printf("create question: %v", err)
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Не удалось сохранить вопрос"})
+			ack("Не удалось сохранить вопрос", true)
 			return
 		}
 		_ = c.form.Cancel(ctx, userID)
@@ -282,7 +305,7 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 	case data == "frm:s":
 		state, ok, err := c.form.Get(ctx, userID)
 		if err != nil || !ok {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Форма устарела, начните заново"})
+			ack("Форма устарела, начните заново", true)
 			return
 		}
 		if state.Mode != schema.FormModeEdit {
@@ -291,11 +314,15 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		q, err := c.admin.UpdateQuestion(ctx, userID, state.QuestionID, state.Draft)
 		if err != nil {
 			if errors.Is(err, errorz.ErrForbidden) {
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Можно редактировать только свои активные вопросы"})
+				ack("Можно редактировать только свои", true)
+				return
+			}
+			if errors.Is(err, errorz.ErrLimitExceeded) {
+				ack("Лимит 150 символов на вопрос и ответ", true)
 				return
 			}
 			log.Printf("update question: %v", err)
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Не удалось обновить вопрос"})
+			ack("Не удалось обновить вопрос", true)
 			return
 		}
 		_ = c.form.Cancel(ctx, userID)
@@ -305,11 +332,7 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 }
 
 func (c *Controller) sendNextQuestion(ctx context.Context, chatID, userID int64) {
-	teamID := ""
-	if t, ok, err := c.team.GetByUserID(ctx, userID); err == nil && ok {
-		teamID = t.ID
-	}
-	q, err := c.game.NextQuestion(ctx, userID, teamID)
+	q, err := c.nextQuestion(ctx, userID)
 	if err != nil {
 		if errors.Is(err, gamesvc.ErrNoNewQuestions) {
 			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Нет новых вопросов", ReplyMarkup: c.mainMenu(userID)})
@@ -327,4 +350,34 @@ func (c *Controller) sendNextQuestion(ctx context.Context, chatID, userID int64)
 			{{Text: "Следующий вопрос", CallbackData: "play"}},
 		}},
 	})
+}
+
+func (c *Controller) sendNextQuestionFromCallback(ctx context.Context, chatID, userID int64, ack func(string, bool)) {
+	q, err := c.nextQuestion(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gamesvc.ErrNoNewQuestions) {
+			ack("Нет новых вопросов", true)
+			return
+		}
+		log.Printf("next question: %v", err)
+		ack("Ошибка. Попробуйте позже", true)
+		return
+	}
+
+	_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{
+		ChatID: chatID,
+		Text:   "Вопрос:\n" + q.QuestionText,
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{Text: "Показать ответ", CallbackData: fmt.Sprintf("ans:%s", q.ID)}},
+			{{Text: "Следующий вопрос", CallbackData: "play"}},
+		}},
+	})
+}
+
+func (c *Controller) nextQuestion(ctx context.Context, userID int64) (schema.Question, error) {
+	teamID := ""
+	if t, ok, err := c.team.GetByUserID(ctx, userID); err == nil && ok {
+		teamID = t.ID
+	}
+	return c.game.NextQuestion(ctx, userID, teamID)
 }

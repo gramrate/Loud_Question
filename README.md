@@ -43,6 +43,7 @@ cp .env.example .env
 
 - `BOT_TOKEN` — токен Telegram-бота
 - `ADMIN_IDS` — список Telegram `user_id` админов через запятую
+- `LOG_CHAT_ID` — `chat_id` служебного чата логов (для событий первого `/start` и команды `/get`)
 - `POSTGRES_*` и `POSTGRES_DSN` — настройки Postgres
 - `REDIS_ADDR`, `REDIS_PASSWORD`, `REDIS_DB` — настройки Redis
 
@@ -65,6 +66,7 @@ docker compose logs -f bot
 - `/start jointeam-<uuid>` — вход в команду по диплинку
 - `/menu` — открыть главное меню
 - `/jointeam <uuid>` — вход в команду по UUID вручную
+- `/get <id>` — команда для лог-чата: показать данные пользователя по Telegram `id`
 
 ## Полезные Docker-команды
 
@@ -96,3 +98,5 @@ docker compose up -d
 - Добавить добавление вопросов Пуллом (до 20)
 - Создание паков вопросов (айти пак, школьный пак)
 - Создание qr-code для присоединения в команду
+- Профили пользователей и статистика
+- Достижения

@@ -1,9 +1,12 @@
 package admin
 
 import (
+	"LoudQuestionBot/internal/domain/errorz"
 	"LoudQuestionBot/internal/domain/repository"
 	"LoudQuestionBot/internal/domain/schema"
 	"context"
+	"strings"
+	"unicode/utf8"
 )
 
 type Service struct {
@@ -15,6 +18,9 @@ func New(questions repository.QuestionRepository) *Service {
 }
 
 func (s *Service) CreateQuestion(ctx context.Context, authorID int64, draft schema.QuestionDraft) (schema.Question, error) {
+	if err := validateDraft(draft); err != nil {
+		return schema.Question{}, err
+	}
 	created, err := s.questions.Create(ctx, schema.Question{
 		QuestionText: draft.QuestionText,
 		AnswerText:   draft.AnswerText,
@@ -39,9 +45,22 @@ func (s *Service) GetQuestion(ctx context.Context, questionID string) (schema.Qu
 }
 
 func (s *Service) UpdateQuestion(ctx context.Context, authorID int64, questionID string, draft schema.QuestionDraft) (schema.Question, error) {
+	if err := validateDraft(draft); err != nil {
+		return schema.Question{}, err
+	}
 	return s.questions.UpdateByAuthor(ctx, authorID, questionID, draft)
 }
 
 func (s *Service) DeleteQuestion(ctx context.Context, authorID int64, questionID string) error {
 	return s.questions.SoftDeleteByAuthor(ctx, authorID, questionID)
+}
+
+func validateDraft(draft schema.QuestionDraft) error {
+	const maxLen = 150
+	q := strings.TrimSpace(draft.QuestionText)
+	a := strings.TrimSpace(draft.AnswerText)
+	if utf8.RuneCountInString(q) > maxLen || utf8.RuneCountInString(a) > maxLen {
+		return errorz.ErrLimitExceeded
+	}
+	return nil
 }
