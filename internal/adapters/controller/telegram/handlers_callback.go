@@ -301,7 +301,7 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		_, err = c.admin.CreateQuestion(ctx, userID, state.Draft)
 		if err != nil {
 			if errors.Is(err, errorz.ErrLimitExceeded) {
-				ack("Лимит 200 символов на вопрос и ответ", true)
+				ack("Лимит 250 символов на вопрос и ответ", true)
 				return
 			}
 			log.Printf("create question: %v", err)
@@ -352,7 +352,7 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 		_, err = c.admin.CreateQuestion(ctx, userID, state.PoolItems[state.PoolIndex])
 		if err != nil {
 			if errors.Is(err, errorz.ErrLimitExceeded) {
-				ack("Лимит 200 символов на вопрос и ответ", true)
+				ack("Лимит 250 символов на вопрос и ответ", true)
 			} else {
 				log.Printf("create pool question: %v", err)
 				ack("Не удалось сохранить вопрос", true)
@@ -385,7 +385,7 @@ func (c *Controller) handleCallback(ctx context.Context, upd *models.Update) {
 				return
 			}
 			if errors.Is(err, errorz.ErrLimitExceeded) {
-				ack("Лимит 200 символов на вопрос и ответ", true)
+				ack("Лимит 250 символов на вопрос и ответ", true)
 				return
 			}
 			log.Printf("update question: %v", err)
