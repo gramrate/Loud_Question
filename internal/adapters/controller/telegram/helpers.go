@@ -117,8 +117,8 @@ func parsePoolQuestions(text string) ([]schema.QuestionDraft, error) {
 		if q == "" || a == "" {
 			return nil, fmt.Errorf("строка %d: вопрос и ответ не могут быть пустыми", i+1)
 		}
-		if utf8.RuneCountInString(q) > 150 || utf8.RuneCountInString(a) > 150 {
-			return nil, fmt.Errorf("строка %d: лимит 150 символов на вопрос и ответ", i+1)
+		if utf8.RuneCountInString(q) > 200 || utf8.RuneCountInString(a) > 200 {
+			return nil, fmt.Errorf("строка %d: лимит 200 символов на вопрос и ответ", i+1)
 		}
 		out = append(out, schema.QuestionDraft{QuestionText: q, AnswerText: a})
 	}

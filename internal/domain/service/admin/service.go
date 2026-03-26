@@ -56,7 +56,7 @@ func (s *Service) DeleteQuestion(ctx context.Context, authorID int64, questionID
 }
 
 func validateDraft(draft schema.QuestionDraft) error {
-	const maxLen = 150
+	const maxLen = 200
 	q := strings.TrimSpace(draft.QuestionText)
 	a := strings.TrimSpace(draft.AnswerText)
 	if utf8.RuneCountInString(q) > maxLen || utf8.RuneCountInString(a) > maxLen {

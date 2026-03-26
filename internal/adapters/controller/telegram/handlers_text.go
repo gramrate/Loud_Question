@@ -43,8 +43,8 @@ func (c *Controller) handleText(ctx context.Context, upd *models.Update) {
 
 	switch state.Step {
 	case schema.FormStepQuestion:
-		if utf8.RuneCountInString(text) > 150 {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос не должен быть длиннее 150 символов"})
+		if utf8.RuneCountInString(text) > 200 {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос не должен быть длиннее 200 символов"})
 			return
 		}
 		state.Draft.QuestionText = text
@@ -52,8 +52,8 @@ func (c *Controller) handleText(ctx context.Context, upd *models.Update) {
 		_ = c.form.Save(ctx, userID, state)
 		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Напишите ответ"})
 	case schema.FormStepAnswer:
-		if utf8.RuneCountInString(text) > 150 {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ не должен быть длиннее 150 символов"})
+		if utf8.RuneCountInString(text) > 200 {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ не должен быть длиннее 200 символов"})
 			return
 		}
 		state.Draft.AnswerText = text
@@ -63,14 +63,14 @@ func (c *Controller) handleText(ctx context.Context, upd *models.Update) {
 	case schema.FormStepEditInput:
 		switch state.Field {
 		case schema.FormFieldQuestion:
-			if utf8.RuneCountInString(text) > 150 {
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос не должен быть длиннее 150 символов"})
+			if utf8.RuneCountInString(text) > 200 {
+				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос не должен быть длиннее 200 символов"})
 				return
 			}
 			state.Draft.QuestionText = text
 		case schema.FormFieldAnswer:
-			if utf8.RuneCountInString(text) > 150 {
-				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ не должен быть длиннее 150 символов"})
+			if utf8.RuneCountInString(text) > 200 {
+				_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ не должен быть длиннее 200 символов"})
 				return
 			}
 			state.Draft.AnswerText = text
@@ -91,8 +91,8 @@ func (c *Controller) handleText(ctx context.Context, upd *models.Update) {
 		_ = c.form.Save(ctx, userID, state)
 		c.sendPoolPreview(ctx, chatID, state)
 	case schema.FormStepPoolEditQ:
-		if utf8.RuneCountInString(text) > 150 {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос не должен быть длиннее 150 символов"})
+		if utf8.RuneCountInString(text) > 200 {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Вопрос не должен быть длиннее 200 символов"})
 			return
 		}
 		if strings.TrimSpace(text) == "" {
@@ -104,8 +104,8 @@ func (c *Controller) handleText(ctx context.Context, upd *models.Update) {
 		_ = c.form.Save(ctx, userID, state)
 		_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Введите ответ"})
 	case schema.FormStepPoolEditA:
-		if utf8.RuneCountInString(text) > 150 {
-			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ не должен быть длиннее 150 символов"})
+		if utf8.RuneCountInString(text) > 200 {
+			_, _ = c.bot.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: chatID, Text: "Ответ не должен быть длиннее 200 символов"})
 			return
 		}
 		if strings.TrimSpace(text) == "" {
