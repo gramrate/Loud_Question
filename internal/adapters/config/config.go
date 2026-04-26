@@ -2,28 +2,31 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 )
 
 type Config struct {
-	BotToken      string
-	PostgresDSN   string
-	RedisAddr     string
-	RedisPassword string
-	RedisDB       int
-	LogChatID     int64
-	AdminIDs      map[int64]struct{}
+	BotToken         string
+	PostgresDSN      string
+	RedisAddr        string
+	RedisPassword    string
+	RedisDB          int
+	LogChatID        int64
+	AdminIDs         map[int64]struct{}
+	TelegramProxyURL string
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		BotToken:      strings.TrimSpace(os.Getenv("BOT_TOKEN")),
-		PostgresDSN:   strings.TrimSpace(os.Getenv("POSTGRES_DSN")),
-		RedisAddr:     valueOrDefault("REDIS_ADDR", "redis:6379"),
-		RedisPassword: strings.TrimSpace(os.Getenv("REDIS_PASSWORD")),
-		AdminIDs:      parseAdminIDs(os.Getenv("ADMIN_IDS")),
+		BotToken:         strings.TrimSpace(os.Getenv("BOT_TOKEN")),
+		PostgresDSN:      strings.TrimSpace(os.Getenv("POSTGRES_DSN")),
+		RedisAddr:        valueOrDefault("REDIS_ADDR", "redis:6379"),
+		RedisPassword:    strings.TrimSpace(os.Getenv("REDIS_PASSWORD")),
+		AdminIDs:         parseAdminIDs(os.Getenv("ADMIN_IDS")),
+		TelegramProxyURL: strings.TrimSpace(os.Getenv("TELEGRAM_PROXY_URL")),
 	}
 
 	redisDBRaw := strings.TrimSpace(os.Getenv("REDIS_DB"))
@@ -52,6 +55,15 @@ func Load() (Config, error) {
 	}
 	if cfg.PostgresDSN == "" {
 		return Config{}, fmt.Errorf("POSTGRES_DSN is required")
+	}
+	if cfg.TelegramProxyURL != "" {
+		parsedURL, err := url.Parse(cfg.TelegramProxyURL)
+		if err != nil {
+			return Config{}, fmt.Errorf("invalid TELEGRAM_PROXY_URL: %w", err)
+		}
+		if parsedURL.Scheme == "" || parsedURL.Host == "" {
+			return Config{}, fmt.Errorf("invalid TELEGRAM_PROXY_URL: scheme and host are required")
+		}
 	}
 
 	return cfg, nil

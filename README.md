@@ -44,6 +44,7 @@ cp .env.example .env
 - `BOT_TOKEN` — токен Telegram-бота
 - `ADMIN_IDS` — список Telegram `user_id` админов через запятую
 - `LOG_CHAT_ID` — `chat_id` служебного чата логов (для событий первого `/start` и команды `/get`)
+- `TELEGRAM_PROXY_URL` — необязательный прокси для Telegram API, например `http://127.0.0.1:8080` или `socks5://127.0.0.1:1080`
 - `POSTGRES_*` и `POSTGRES_DSN` — настройки Postgres
 - `REDIS_ADDR`, `REDIS_PASSWORD`, `REDIS_DB` — настройки Redis
 

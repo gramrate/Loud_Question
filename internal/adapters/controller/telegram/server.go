@@ -9,6 +9,9 @@ import (
 	usersvc "LoudQuestionBot/internal/domain/service/user"
 	"context"
 	"log"
+	"net/http"
+	"net/url"
+	"time"
 
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -33,10 +36,19 @@ type Controller struct {
 	logChatID   int64
 }
 
-func New(token string, logChatID int64, accessSvc *access.Service, gameSvc *gamesvc.Service, adminSvc *adminsvc.Service, formSvc *form.Service, teamSvc *teamsvc.Service, userSvc *usersvc.Service) (*Runner, error) {
+func New(token string, logChatID int64, proxyURL string, accessSvc *access.Service, gameSvc *gamesvc.Service, adminSvc *adminsvc.Service, formSvc *form.Service, teamSvc *teamsvc.Service, userSvc *usersvc.Service) (*Runner, error) {
 	ctrl := &Controller{access: accessSvc, game: gameSvc, admin: adminSvc, form: formSvc, team: teamSvc, users: userSvc, logChatID: logChatID}
 
-	b, err := tgbot.New(token, tgbot.WithDefaultHandler(ctrl.defaultHandler))
+	options := []tgbot.Option{tgbot.WithDefaultHandler(ctrl.defaultHandler)}
+	if proxyURL != "" {
+		httpClient, err := newProxyHTTPClient(proxyURL)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, tgbot.WithHTTPClient(time.Minute, httpClient))
+	}
+
+	b, err := tgbot.New(token, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -92,4 +104,18 @@ func (c *Controller) touchUserInteraction(ctx context.Context, upd *models.Updat
 	if err := c.users.TouchInteraction(ctx, userID); err != nil {
 		log.Printf("touch user interaction: %v", err)
 	}
+}
+
+func newProxyHTTPClient(rawURL string) (*http.Client, error) {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return &http.Client{
+		Timeout: time.Minute,
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(parsedURL),
+		},
+	}, nil
 }

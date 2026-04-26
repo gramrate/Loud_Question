@@ -97,7 +97,7 @@ func (sp *ServiceProvider) init() error {
 	sp.teamService = team.New(teamRepo)
 	sp.userService = user.New(userRepo)
 
-	botRunner, err := tgcontroller.New(cfg.BotToken, cfg.LogChatID, sp.accessService, sp.gameService, sp.adminService, sp.formService, sp.teamService, sp.userService)
+	botRunner, err := tgcontroller.New(cfg.BotToken, cfg.LogChatID, cfg.TelegramProxyURL, sp.accessService, sp.gameService, sp.adminService, sp.formService, sp.teamService, sp.userService)
 	if err != nil {
 		return fmt.Errorf("create telegram controller: %w", err)
 	}
